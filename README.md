@@ -39,6 +39,21 @@ agent/turn-stopping
 | exhaustiveness | 联合类型的 switch/match 是否覆盖全部构造子 |
 | ordering | 校验是否先于副作用；部分失败是否留下半更新状态 |
 
+### 风格维度（`style: true` 才启用）
+
+只收类型论里可判定的四条，**severity 固定 `minor`，永远不翻转裁决、不触发 steer**：
+
+| 规则 | 依据 | 检查 |
+|---|---|---|
+| 未使用绑定 | 仿射性：用了零次就是浪费 | 新增变量/参数/导入未被使用 |
+| 总函数优先 | 类型即命题，`throw` / `null` 放弃了定义域的一部分 | 可预期输入下抛异常或返回 null |
+| 抽象不泄漏 | 存在类型 | 返回内部可变引用、暴露实现类型 |
+| 单一表示 | 同构唯一性 | 同一概念出现两种可派生的表示 |
+
+明确**禁止**评价命名、注释、格式、函数长度、嵌套层级、抽象层级——这些不是类型论可判定的，收进来只会变成口味警察。
+
+有 style 项时它单独成段附在注入末尾；只有 style、没有 blocker/major 时**完全不注入**。
+
 ## 安装
 
 desktop profile 由 Electron 独占，CLI 会拒绝；web 可以直接装：
@@ -73,6 +88,7 @@ desktop 走桌面端插件管理，或手工改 profile 后 `pnpm install`（见
 | `maxFindings` | `5` | 保留的 findings 上限 |
 | `mutationTools` | `['edit','write']` | 视为代码改动的工具名 |
 | `steer` | `true` | 有问题时是否 steer 主 agent 先修 |
+| `style` | `false` | 是否附加四条形式化风格检查（固定 minor，不阻塞） |
 
 ## 测试
 
@@ -80,7 +96,7 @@ desktop 走桌面端插件管理，或手工改 profile 后 `pnpm install`（见
 node --test
 ```
 
-22 个用例：diff 提取（edit/write/多文件/跨轮隔离/非法参数）、预算截断、语言识别、提示组装、findings 归一化与限量、severity 裁决、只读请求、每 turn 一次、各类失败降级。
+28 个用例：diff 提取（edit/write/多文件/跨轮隔离/非法参数）、预算截断、语言识别、提示组装、findings 归一化与限量、severity 裁决、只读请求、每 turn 一次、风格维度开关与分段、各类失败降级。
 
 ## 限制
 

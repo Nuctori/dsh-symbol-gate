@@ -157,3 +157,39 @@ test('关闭开关后完全不介入', async () => {
   assert.equal(calls.length, 0)
   assert.equal(agent.injected.length, 0)
 })
+
+const styleFinding = {
+  rule: 'style',
+  severity: 'minor',
+  file: 'src/worker.ts',
+  line: 3,
+  symbol: 'open',
+  why: '绑定未使用',
+  fix: '删除',
+}
+
+test('style 默认关闭:提示里没有风格清单', async () => {
+  const agent = makeAgent(CHANGED)
+  const { ctx, handlers, calls } = makeCtx({ findings: [] })
+  apply(ctx)
+  await fire(handlers, agent)
+  assert.ok(!calls[0].request.prompt[0].text.includes('未使用绑定'))
+})
+
+test('只有 style 发现时不注入', async () => {
+  const agent = makeAgent(CHANGED)
+  const { ctx, handlers } = makeCtx({ findings: [styleFinding] })
+  apply(ctx, { style: true })
+  await fire(handlers, agent)
+  assert.equal(agent.injected.length, 0)
+})
+
+test('style 开启且同时有 blocker 时,风格项单独成段', async () => {
+  const agent = makeAgent(CHANGED)
+  const { ctx, handlers, calls } = makeCtx({ findings: [finding('blocker'), styleFinding] })
+  apply(ctx, { style: true })
+  await fire(handlers, agent)
+  assert.ok(calls[0].request.prompt[0].text.includes('未使用绑定'))
+  assert.equal(agent.injected.length, 1)
+  assert.ok(agent.injected[0].includes('风格(仅提示,不阻塞)'))
+})

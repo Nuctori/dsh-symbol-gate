@@ -174,3 +174,55 @@ test('输出 schema 强制 findings 数组', () => {
   assert.equal(FINDINGS_SCHEMA.type, 'object')
   assert.deepEqual(FINDINGS_SCHEMA.required, ['findings'])
 })
+
+test('style 清单只在开启时进入提示', () => {
+  const input = { userText: 'x', changes: [{ file: 'a.ts', tool: 'edit', language: 'typescript', added: 'let a = 1', removed: null }] }
+  assert.ok(!auditPrompt(input).includes('未使用绑定'))
+  const withStyle = auditPrompt(input, { style: true })
+  assert.ok(withStyle.includes('未使用绑定'))
+  assert.ok(withStyle.includes('总函数'))
+})
+
+test('normalizeFindings 接受 style 规则', () => {
+  const out = normalizeFindings({
+    findings: [
+      {
+        rule: 'style',
+        severity: 'minor',
+        file: 'a.ts',
+        line: 1,
+        symbol: 'a',
+        why: '绑定未使用',
+        fix: '删除',
+      },
+    ],
+  })
+  assert.equal(out.length, 1)
+  assert.equal(out[0].rule, 'style')
+})
+
+test('style 项在注入里单独成段,且不改变前缀', () => {
+  const blocker = {
+    rule: 'effect',
+    severity: 'blocker',
+    file: 'a.ts',
+    line: 2,
+    symbol: 'f',
+    why: '未 await',
+    fix: '加 await',
+  }
+  const style = {
+    rule: 'style',
+    severity: 'minor',
+    file: 'a.ts',
+    line: 3,
+    symbol: 'b',
+    why: '绑定未使用',
+    fix: '删除',
+  }
+  const text = injectionOf([blocker, style])
+  assert.ok(text.startsWith(SYMBOL_MARK))
+  assert.ok(text.includes('风格(仅提示,不阻塞)'))
+  assert.ok(text.indexOf('未 await') < text.indexOf('绑定未使用'))
+  assert.ok(!injectionOf([blocker]).includes('风格'))
+})
