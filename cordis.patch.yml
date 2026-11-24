@@ -1,0 +1,5 @@
+# dsh-symbol-gate bundle patch: mounts one plugin row. Insert only — no preset,
+# no compaction, no UI overrides.
+- insert:
+    - id: symbol-gate
+      name: 'dsh-symbol-gate'
