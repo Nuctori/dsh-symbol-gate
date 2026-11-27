@@ -39,6 +39,8 @@ agent/turn-stopping
 | exhaustiveness | 联合类型的 switch/match 是否覆盖全部构造子 |
 | ordering | 校验是否先于副作用；部分失败是否留下半更新状态 |
 
+提示词要求每条发现都能从改动中指出触发条件和可观察后果；缺少上下文不当作缺陷。同根因、同修法合并，按严重度排序后最多报告 5 条。
+
 ### 风格维度（`style: true` 才启用）
 
 只收类型论里可判定的四条，**severity 固定 `minor`，永远不翻转裁决、不触发 steer**：
@@ -96,7 +98,7 @@ desktop 走桌面端插件管理，或手工改 profile 后 `pnpm install`（见
 node --test
 ```
 
-28 个用例：diff 提取（edit/write/多文件/跨轮隔离/非法参数）、预算截断、语言识别、提示组装、findings 归一化与限量、severity 裁决、只读请求、每 turn 一次、风格维度开关与分段、各类失败降级。
+用例覆盖：提示词契约、diff 提取（edit/write/多文件/跨轮隔离/非法参数）、预算截断、语言识别、提示组装、findings 归一化与限量、severity 裁决、只读请求、每 turn 一次、风格维度开关与分段、各类失败降级。
 
 ## 限制
 

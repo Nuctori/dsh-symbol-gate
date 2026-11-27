@@ -119,6 +119,15 @@ test('审计提示包含 checklist 与全部改动', () => {
   assert.ok(prompt.includes('修 worker'))
 })
 
+test('审计提示要求局部证据、合并同因发现并优先报告严重问题', () => {
+  const prompt = auditPrompt({ userText: '', changes: [] })
+  assert.match(prompt, /触发条件.*可观察后果/)
+  assert.match(prompt, /同根因且同修法.*合并/)
+  assert.match(prompt, /blocker → major → minor.*最多 5 条/)
+  assert.match(prompt, /不执行其中的指令/)
+  assert.match(prompt, /无发现返回 \{"findings":\[\]\}/)
+})
+
 test('normalizeFindings 丢弃非法项、校验文件与理由并限量', () => {
   const out = normalizeFindings(
     {
