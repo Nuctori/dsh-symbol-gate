@@ -1,8 +1,6 @@
 # dsh-symbol-gate
 
-回合结束前的代码门禁。把**本轮的改动**（`edit` / `write` 的入参）组装成 diff，用**一次**只读 LLM 调用按类型论 checklist 审计符号正确性，有 blocker/major 就把 findings 注入回主 agent 并让它先修。
-
-它不读文件、不跑 git、不跑编译器、不引入任何 npm 依赖。
+回合结束前的代码门禁。Git 工作区优先审计**本轮净文件变化**，采集不可用时回退到 `edit` / `write` 入参。它用**一次**只读 LLM 调用审计，发现 blocker/major 时提醒主 agent。无需额外 npm 依赖。
 
 ## 它是什么，不是什么
 
@@ -11,10 +9,11 @@
 ## 机制
 
 ```
+agent/pre-step（首步）→ 读取 Git 工作区文件基线
 agent/turn-stopping
-  ↓ 从会话事件取本轮 tool/call（name ∈ mutationTools）
-  ↓ edit → {added: new_string, removed: old_string}；write → {added: content}
-  ↓ 预算：单文件 4KB、总计 20KB，超出截断并标记
+  ↓ Git 基线与收尾文件内容比较，对变化文件运行 git diff --no-index
+  ↓ 无可用基线、目录改变、失败或超预算 → 回退 edit/write 入参
+  ↓ 审计输入受单文件和全轮字符预算限制
   ↓ 一次只读子代理（toolFilter allow 为空）
   ↓ findings 归一化 → blocker/major 才注入
   ↓ agent.inject(findings) + agent.steer(提示)
@@ -22,7 +21,7 @@ agent/turn-stopping
 
 关键约束：
 
-- **只观察 diff**：diff 来自工具调用入参，插件从不读文件、不跑 `git diff`。
+- **Git 优先**：只比较回合前后已跟踪及非忽略新文件的工作树内容。回合前已有且本轮未变的文件不会作为发现输入；只改暂存区、不改工作树内容不算变化。不会改写真实 index、分支或工作树；跳过非 UTF-8、二进制与符号链接。
 - **一次调用**：整轮聚合后只审一次，按 `turn/start` 的 seq 记账，重复触发不再审。
 - **只读**：判定者 `toolFilter: { allow: [] }`，无工具、不执行、不写文件。
 - **失败即放行**：子代理缺失、超时、未完成、输出非法 → 全部 pass，绝不打断收尾。
@@ -87,6 +86,8 @@ desktop 走桌面端插件管理，或手工改 profile 后 `pnpm install`（见
 | `timeoutMs` | `45000` | 审计超时，超时按 pass |
 | `maxFileChars` | `4000` | 单个改动的字符预算 |
 | `maxTotalChars` | `20000` | 整轮改动的字符预算 |
+| `gitTimeoutMs` | `2000` | Git 基线和收尾采集各自的时间预算（毫秒） |
+| `gitMaxBytes` | `8388608` | 单次 Git 文件快照的内容字节上限；超限回退工具采集 |
 | `maxFindings` | `5` | 保留的 findings 上限 |
 | `mutationTools` | `['edit','write']` | 视为代码改动的工具名 |
 | `steer` | `true` | 有问题时是否 steer 主 agent 先修 |
@@ -103,6 +104,6 @@ node --test
 ## 限制
 
 - 没有类型信息，无法证明正确性；只报可指认的反例。
-- 只有 diff 片段，跨文件的符号解析不在范围内。
+- 只有 diff 片段，跨文件的符号解析不在范围内。Git 采集只看回合开始时的工作目录及其子目录，不覆盖仓库外文件、子模块内容、纯文件权限变化和回合中并发编辑的归因；时间窗口内他人的改动也可能被纳入。大仓库触及采集预算时回退工具事件。
 - 已发生的改动拦不住：门禁只能在下一步之前告知并让模型自己修。
 - 与 `dsh-drift-gate` 若同时启用，两者都在 `turn-stopping` 注入，会看到两条独立提示。
