@@ -35,7 +35,7 @@ function fixture(t, repo = true, config = {}) {
     const hook = handlers.get('agent/pre-step')
     if (hook) assert.deepEqual(await hook({ agent, turn: 1, step: 1 }, next), next())
   }
-  const stop = () => handlers.get('agent/turn-stopping')({ agent, turn: 1 })
+  const stop = signal => handlers.get('agent/turn-stopping')({ agent, turn: 1, signal })
   const call = (file_path, content) => events.push({ type: 'tool/call', data: { name: 'write', arguments: JSON.stringify({ file_path, content }) } })
   return { cwd, git, write, start, stop, call, prompts }
 }
@@ -68,6 +68,20 @@ test('Git 净变化为空时不审已撤销的工具改动', async t => {
   await f.stop()
   await f.stop()
   assert.equal(f.prompts.length, 0)
+})
+
+test('Git 采集中取消后，同回合重试仍能审到仅 Shell 写入的变化', async t => {
+  const f = fixture(t)
+  await f.start()
+  f.write('new.js', 'shell-only retry evidence\n')
+  const controller = new AbortController()
+  const stopped = f.stop(controller.signal)
+  controller.abort()
+  await stopped
+  assert.equal(f.prompts.length, 0)
+  await Promise.all([f.stop(), f.stop()])
+  assert.equal(f.prompts.length, 1)
+  assert.match(f.prompts[0], /shell-only retry evidence/)
 })
 
 for (const mode of ['non-repo', 'missing-baseline', 'budget']) {
