@@ -11,6 +11,9 @@ function fixture(t, repo = true, config = {}) {
   t.after(() => rmSync(cwd, { recursive: true, force: true }))
   const git = (...args) => execFileSync('git', args, { cwd })
   const write = (name, value) => writeFileSync(join(cwd, name), value)
+  const shell = script => process.platform === 'win32'
+    ? execFileSync('cmd.exe', ['/d', '/c', script], { cwd })
+    : execFileSync('sh', ['-c', script], { cwd })
   if (repo) {
     git('init', '-q')
     write('dirty.js', 'staged value\n')
@@ -37,7 +40,7 @@ function fixture(t, repo = true, config = {}) {
   }
   const stop = signal => handlers.get('agent/turn-stopping')({ agent, turn: 1, signal })
   const call = (file_path, content) => events.push({ type: 'tool/call', data: { name: 'write', arguments: JSON.stringify({ file_path, content }) } })
-  return { cwd, git, write, start, stop, call, prompts }
+  return { cwd, git, write, shell, start, stop, call, prompts }
 }
 
 test('Git 基线只审本轮净变化，覆盖 Shell、暂存与同轮工具混用且不写真实 index', async t => {
@@ -45,8 +48,8 @@ test('Git 基线只审本轮净变化，覆盖 Shell、暂存与同轮工具混�
   const indexPath = join(f.cwd, '.git', 'index')
   await f.start()
   f.call('reverted.js', 'transient tool payload')
-  f.write('dirty.js', 'new shell change\n')
-  f.write('new.js', 'new untracked file\n')
+  f.shell('echo new shell change>dirty.js')
+  f.shell('echo new untracked file>new.js')
   f.write('ignored.js', 'not audit material\n')
   rmSync(join(f.cwd, 'old.js'))
   f.git('add', '-u')
@@ -73,7 +76,7 @@ test('Git 净变化为空时不审已撤销的工具改动', async t => {
 test('Git 采集中取消后，同回合重试仍能审到仅 Shell 写入的变化', async t => {
   const f = fixture(t)
   await f.start()
-  f.write('new.js', 'shell-only retry evidence\n')
+  f.shell('echo shell-only retry evidence>new.js')
   const controller = new AbortController()
   const stopped = f.stop(controller.signal)
   controller.abort()
